@@ -26,6 +26,8 @@ The package pins DroppyKit **1.20.1** and declares a minimum public SDK API vers
 
 ## Build and install
 
+Download `Chroma.droplet.zip` from [GitHub Releases](https://github.com/tixtixtixtix/chroma/releases/latest) and unzip it, or build the bundle from source below.
+
 Clone the project and the pinned SDK into sibling directories:
 
 ```sh
@@ -74,7 +76,7 @@ swift test
 
 Tests cover HEX parsing, copy behavior, input handling, history limits and deduplication, persistence, and native scroll layouts. The SDK harness renders each declared surface and reports activation or capability problems. Generated bundles, screenshots, editor configuration, temporary files, and credentials are excluded from Git.
 
-The included icon and creator avatar are development placeholders. Droppy Store submission is a separate process and requires final creator artwork and the Store’s icon workflow.
+The main icon is the supplied colorPicker Icon Composer artwork. The creator avatar remains a development placeholder. Droppy Store submission is a separate process and follows the Store’s artwork requirements.
 
 See [CHANGELOG.md](CHANGELOG.md) for version history.
 

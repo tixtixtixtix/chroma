@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.0] - 2026-10-10 — First public release
+
+- Publish the complete native HEX picker, saved colors, and color suggestions.
+- Add the supplied colorPicker artwork as the main icon.
+- Start public release numbering at 1.0.0; earlier entries document development builds.
+
 ## [1.0.10] - 2026-10-10
 
 - Keep saved-color hosting stable so insertion and reordering animations survive native scrolling.
