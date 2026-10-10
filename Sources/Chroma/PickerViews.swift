@@ -44,10 +44,11 @@ struct ColorTile:View {
 
 struct CaptureButton:View {
     @ObservedObject var model:ChromaDroplet
+    var size:CGFloat=28
     var body:some View {
         if model.captureCommand != nil {
         Button { model.pickAndCopy() } label: { ChromaSymbol(name:"eyedropper") }
-            .buttonStyle(DroppyCircleButtonStyle(size:28))
+            .buttonStyle(DroppyCircleButtonStyle(size:size))
             .disabled(model.captureCommand == nil)
             .help(model.captureCommand == nil ? "Enable Droppy’s capture color picker. Not available in Playground." : "Pick & copy with Droppy’s capture eyedropper")
             .accessibilityLabel("Pick and copy with Droppy’s eyedropper")
@@ -59,22 +60,11 @@ struct CompactPicker:View {
     @ObservedObject var model:ChromaDroplet
     let context:ShelfWidgetContext
     @State private var previewHovered=false
+    @State private var pinDropHovered=false
     private var copied:Bool { model.notice.hasPrefix("Copied") }
-    private var headerHeight:CGFloat { model.captureCommand == nil ? 20:28 }
-    private var previewHeight:CGFloat { 104-context.contentInsets.top-context.contentInsets.bottom }
+    private var contentHeight:CGFloat { context.availableSize.height-context.contentInsets.top-context.contentInsets.bottom }
+    private var previewHeight:CGFloat { max(24,contentHeight-24) }
     var body:some View {
-        VStack(alignment:.leading,spacing:DroppySpacing.sm) {
-            HStack(spacing:DroppySpacing.xsm) {
-                ChromaSymbol(name:"paintpalette"); Text("Chroma")
-                Spacer(minLength:0)
-                CaptureButton(model:model)
-                Button { model.toggleSelectedPin() } label: { ChromaSymbol(name:model.selectedIsPinned ? "pin.slash":"pin") }
-                    .buttonStyle(DroppyCircleButtonStyle(size:20))
-                    .help(model.selectedIsPinned ? "Unpin selected color":"Pin selected color")
-                    .accessibilityLabel(model.selectedIsPinned ? "Unpin selected color":"Pin selected color")
-                Button { model.openPicker() } label: { ChromaSymbol(name:"arrow.up.left.and.arrow.down.right") }
-                    .buttonStyle(DroppyCircleButtonStyle(size:20)).help("Open color picker").accessibilityLabel("Open color picker")
-            }.font(.system(size:12,weight:.semibold)).foregroundStyle(AdaptiveColors.notchSurfaceSecondaryText).frame(height:headerHeight)
             HStack(alignment:.top,spacing:DroppySpacing.sm) {
                 Button { model.copyHex() } label: {
                     VStack(spacing:4) {
@@ -100,18 +90,32 @@ struct CompactPicker:View {
                 InlineColorPicker(model:model,planeHeight:previewHeight)
                     .frame(maxWidth:.infinity)
                 if !model.quickColors.isEmpty {
-                    VStack(spacing:DroppySpacing.xsm) {
+                    VStack(spacing:DroppySpacing.xs) {
                         ForEach(Array(model.quickColors.prefix(4))) { color in
-                            Swatch(model:model,color:color,kind:model.library.pinned.contains(where:{$0.color==color}) ? .pinned:.recent,tileHeight:23)
-                                .frame(width:23).transition(.scale(scale:0.92).combined(with:.opacity))
+                            Swatch(model:model,color:color,kind:model.displayedLibrary.pinned.contains(where:{$0.color==color}) ? .pinned:.recent,tileHeight:(contentHeight-3*DroppySpacing.xs)/4,vertical:true)
+                                .frame(width:22).transition(.scale(scale:0.92).combined(with:.opacity))
                         }
                         Spacer(minLength:0)
-                    }.frame(width:23,height:previewHeight+24,alignment:.top)
+                    }.frame(width:22,height:contentHeight,alignment:.top)
                         .animation(DroppyAnimation.listChange,value:model.quickColors)
                 }
-            }
-        }.padding(context.contentInsets).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading)
+                VStack(spacing:DroppySpacing.xsm) {
+                    Button { model.openPicker() } label: { ChromaSymbol(name:"arrow.up.left.and.arrow.down.right") }
+                        .buttonStyle(DroppyCircleButtonStyle(size:20)).help("Open color picker").accessibilityLabel("Open color picker")
+                    Button { model.toggleSelectedPin() } label: { ChromaSymbol(name:model.selectedIsPinned ? "pin.slash":"pin") }
+                        .buttonStyle(DroppyCircleButtonStyle(size:20))
+                        .help(model.selectedIsPinned ? "Unpin selected color":"Pin selected color")
+                        .accessibilityLabel(model.selectedIsPinned ? "Unpin selected color":"Pin selected color")
+                        .background {
+                            NativeSwatchInteraction(model:model,color:nil,dropEnabled:true,target:nil,onTarget:{ pinDropHovered=$0 },section:.pinned,togglesPin:true)
+                        }
+                        .background(Circle().fill(.white.opacity(pinDropHovered ? 0.12:0)))
+                        .help("Click to pin or unpin. Drop a swatch here to pin or unpin it.")
+                    CaptureButton(model:model,size:20)
+                }.font(.system(size:12,weight:.semibold)).frame(width:20)
+            }.padding(context.contentInsets).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading)
             .background(CopyShortcut(action:{ model.copyHex() }))
+            .overlay { NativeSwatchCanvas(model:model).allowsHitTesting(false) }
             .foregroundStyle(AdaptiveColors.notchSurfacePrimaryText)
             .onAppear { if !context.isPreview { model.consumeCapture(); model.checkClipboard() } }
             .onHover { if $0 && !context.isPreview { model.consumeCapture(); model.checkClipboard() } }
@@ -121,10 +125,12 @@ struct CompactPicker:View {
 struct ExpandedPicker:View {
     @ObservedObject var model:ChromaDroplet
     let isPreview:Bool
+    var availableHeight:CGFloat?=nil
+    private var savedViewportHeight:CGFloat {
+        min(model.savedColorsHeight,max(0,(availableHeight ?? model.pickerHeight)-(model.measuredPickerHeaderHeight ?? 230)-36))
+    }
     @FocusState private var hexFocused:Bool
     @State private var hexHovered=false
-    @State private var suggestionKind=0
-    @State private var suggestionHovered=false
     var body:some View {
         VStack(alignment:.leading,spacing:DroppySpacing.md) {
             VStack(alignment:.leading,spacing:DroppySpacing.md) {
@@ -190,50 +196,64 @@ struct ExpandedPicker:View {
                             Spacer()
                         }
                     }
-                    SwatchSection(title:"Pinned",colors:model.library.pinned.map(\.color),model:model,kind:.pinned)
-                    SwatchSection(title:"Recent",colors:model.library.recent,model:model,kind:.recent)
-                    HStack {
-                        Menu {
-                            Button { withAnimation(DroppyAnimation.hover) { suggestionKind=0 } } label: { Label("Complementary",systemImage:suggestionKind==0 ? "checkmark":"circle") }
-                            Button { withAnimation(DroppyAnimation.hover) { suggestionKind=1 } } label: { Label("Analogous",systemImage:suggestionKind==1 ? "checkmark":"circle") }
-                        } label: {
-                            Color.clear.frame(height:14)
-                        }
-                        .menuStyle(.borderlessButton).menuIndicator(.hidden)
-                        .overlay {
-                            HStack(spacing:5) {
-                                Text(suggestionKind==0 ? "Complementary":"Analogous")
-                                    .font(.system(size:11)).contentTransition(.opacity)
-                                ChromaSymbol(name:"chevron.down").font(.system(size:8,weight:.semibold))
-                            }.fixedSize().allowsHitTesting(false).accessibilityHidden(true)
-                        }
-                        .accessibilityLabel(suggestionKind==0 ? "Complementary suggestions":"Analogous suggestions")
-                        .frame(width:suggestionLabelWidth)
-                        .fixedSize(horizontal:false,vertical:true)
-                        .foregroundStyle(AdaptiveColors.notchSurfacePrimaryText).tint(AdaptiveColors.notchSurfacePrimaryText)
-                        .padding(.horizontal,DroppySpacing.sm).padding(.vertical,DroppySpacing.xsm)
-                        .droppyGlassControlChrome(shape:AnyShape(Capsule(style:.continuous)),fill:.veil,isHovering:suggestionHovered)
-                        .onHover { suggestionHovered=$0 }
-                        .animation(DroppyAnimation.hover,value:suggestionKind)
-                        .help("Choose complementary or analogous color suggestions")
-                        Spacer()
-                        ForEach(suggestions) { color in Swatch(model:model,color:color,kind:.suggestion) }
-                    }.padding(.top,DroppySpacing.xs)
-                        .animation(DroppyAnimation.listChange,value:suggestions)
-                }.padding(.bottom,DroppySpacing.xs)
-            }.frame(maxHeight:model.savedColorsHeight)
-        }.padding(DroppySpacing.md).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading)
+                    SwatchSection(title:"Pinned",colors:model.displayedLibrary.pinned.map(\.color),model:model,kind:.pinned)
+                    SwatchSection(title:"Recent",colors:model.displayedLibrary.recent,model:model,kind:.recent)
+                    ColorSuggestions(model:model).padding(.top,DroppySpacing.xs)
+                }
+            }.frame(height:savedViewportHeight)
+        }.padding(DroppySpacing.md).frame(maxWidth:.infinity,alignment:.topLeading)
+            .fixedSize(horizontal:false,vertical:true)
             .foregroundStyle(AdaptiveColors.notchSurfacePrimaryText)
             .onAppear { if !isPreview { model.consumeCapture(); model.checkClipboard() } }
             .onHover { if $0 && !isPreview { model.consumeCapture(); model.checkClipboard() } }
             .onChange(of:hexFocused) { _, focused in if !focused { model.flushEdit() } }
             .background(CopyShortcut(action:{ model.copyHex() }))
+            .overlay { NativeSwatchCanvas(model:model).allowsHitTesting(false) }
     }
-    private var suggestionLabelWidth:CGFloat {
-        let title=suggestionKind==0 ? "Complementary":"Analogous"
-        return (title as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:11)]).width+18
+}
+
+/// Own the selection state within the stable saved-content host, including while the popover is open.
+struct ColorSuggestions:View {
+    @ObservedObject var model:ChromaDroplet
+    @State private var kind=0
+    @State private var choosing=false
+    @State private var hovered=false
+    private var title:String { kind==0 ? "Complementary":"Analogous" }
+    private var width:CGFloat { (title as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:11)]).width+18 }
+    private var colors:[HexColor] { kind==0 ? [model.selected.rotatedHue(0.5)]:[model.selected.rotatedHue(-1/12),model.selected.rotatedHue(1/12)] }
+    var body:some View {
+        HStack {
+            Button { choosing.toggle() } label: {
+                HStack(spacing:5) {
+                    Text(title).font(.system(size:11)).contentTransition(.opacity)
+                    ChromaSymbol(name:"chevron.down").font(.system(size:8,weight:.semibold))
+                }.frame(width:width,height:14)
+                    .padding(.horizontal,DroppySpacing.sm).padding(.vertical,DroppySpacing.xsm)
+                    .droppyGlassControlChrome(shape:AnyShape(Capsule(style:.continuous)),fill:.veil,isHovering:hovered || choosing)
+            }.buttonStyle(ColorSurfaceButtonStyle()).onHover { hovered=$0 }
+                .help("Choose complementary or analogous color suggestions")
+                .accessibilityLabel("Color suggestions: \(title)")
+                .popover(isPresented:$choosing,arrowEdge:.bottom) {
+                    VStack(alignment:.leading,spacing:4) {
+                        option("Complementary",value:0)
+                        option("Analogous",value:1)
+                    }.padding(8)
+                }
+            Spacer(minLength:4)
+            ForEach(colors) { color in Swatch(model:model,color:color,kind:.suggestion).transition(.opacity) }
+        }.animation(DroppyAnimation.hover,value:kind)
     }
-    var suggestions:[HexColor] { suggestionKind==0 ? [model.selected.rotatedHue(0.5)] : [model.selected.rotatedHue(-1/12),model.selected.rotatedHue(1/12)] }
+    private func option(_ title:String,value:Int)->some View {
+        Button {
+            withAnimation(DroppyAnimation.hover) { kind=value }
+            choosing=false
+        } label: {
+            HStack {
+                ChromaSymbol(name:"checkmark").frame(width:12).opacity(kind==value ? 1:0)
+                Text(title)
+            }.frame(maxWidth:.infinity,alignment:.leading)
+        }.buttonStyle(DroppyQuietButtonStyle(size:.small))
+    }
 }
 
 private struct SavedColorsScrollView<Content:View>:View {
@@ -285,8 +305,10 @@ final class SavedColorsNativeScrollView:NSScrollView {
         super.init(frame:.zero)
         drawsBackground=false
         contentView.drawsBackground=false
-        hasVerticalScroller=true
+        hasVerticalScroller=false
         hasHorizontalScroller=false
+        verticalScrollElasticity = .none
+        horizontalScrollElasticity = .none
         autohidesScrollers=false
         scrollerStyle = .legacy
         verticalScroller?.knobStyle = .light
@@ -296,6 +318,22 @@ final class SavedColorsNativeScrollView:NSScrollView {
         document.widthAnchor.constraint(equalTo:contentView.widthAnchor).isActive=true
     }
     required init?(coder:NSCoder) { nil }
+    var isScrollable:Bool { (documentView?.frame.height ?? 0)>contentView.bounds.height+1 }
+    override func layout() {
+        super.layout()
+        updateScrollingAvailability()
+    }
+    func updateScrollingAvailability() {
+        let enabled=isScrollable
+        if hasVerticalScroller != enabled { hasVerticalScroller=enabled; verticalScroller?.knobStyle = .light }
+        if !enabled && contentView.bounds.origin != .zero {
+            contentView.scroll(to:.zero); reflectScrolledClipView(contentView)
+        }
+    }
+    override func scrollWheel(with event:NSEvent) {
+        guard isScrollable else { return }
+        super.scrollWheel(with:event)
+    }
     var remainingContent:CGFloat { max(0,(documentView?.frame.height ?? 0)-contentView.bounds.maxY) }
     var hasContentBelow:Bool { remainingContent>1 }
 
@@ -330,6 +368,7 @@ private final class SavedColorsScrollCoordinator {
     func measureLater() {
         DispatchQueue.main.async { [weak self] in
             guard let self,let scroll=self.scroll as? SavedColorsNativeScrollView else { return }
+            scroll.updateScrollingAvailability()
             self.update?(scroll.hasContentBelow,scroll.documentView?.frame.height ?? 0)
         }
     }
@@ -358,6 +397,7 @@ struct SwatchSection:View {
     let colors:[HexColor]
     @ObservedObject var model:ChromaDroplet
     let kind:SwatchKind
+    @State private var dropTargeted=false
     var body:some View {
         VStack(alignment:.leading,spacing:DroppySpacing.xsm) {
             Text(title).font(.system(size:11,weight:.semibold)).foregroundStyle(AdaptiveColors.notchSurfaceSecondaryText)
@@ -369,11 +409,22 @@ struct SwatchSection:View {
                 }.frame(minHeight:colors.isEmpty ? 14:0)
                     .overlay(alignment:.topLeading) {
                         if colors.isEmpty {
-                            Text(kind == .pinned ? "Pin a color to keep it here.":"Your selected colors appear here.")
+                            Text(kind == .pinned ? "Drag a color here or use Pin.":"Your selected colors appear here.")
                                 .font(.system(size:11)).foregroundStyle(AdaptiveColors.notchSurfaceTertiaryText)
                         }
                     }
-        }.animation(DroppyAnimation.listChange,value:colors)
+        }.contentShape(Rectangle())
+            .overlay {
+                if dropTargeted {
+                    RoundedRectangle(cornerRadius:DroppyRadius.small).fill(.white.opacity(0.035)).allowsHitTesting(false)
+                }
+            }
+            .background {
+                if kind != .suggestion {
+                    NativeSwatchInteraction(model:model,color:nil,dropEnabled:true,target:nil,onTarget:{ dropTargeted=$0 },section:kind)
+                }
+            }
+            .animation(DroppyAnimation.listChange,value:colors)
     }
 }
 struct Swatch:View {
@@ -381,6 +432,8 @@ struct Swatch:View {
     let color:HexColor
     let kind:SwatchKind
     var tileHeight:CGFloat=32
+    var vertical:Bool=false
+    @State private var dropTargeted=false
     @State private var rename=false
     @State private var name=""
     var isPinned:Bool { model.library.pinned.contains(where:{$0.color==color}) }
@@ -398,16 +451,12 @@ struct Swatch:View {
                 }
                 .scaleEffect(isSelected ? 1:0.96)
                 .animation(DroppyAnimation.hoverQuick,value:isSelected)
-        }.buttonStyle(ColorSurfaceButtonStyle()).focusEffectDisabled().frame(width:kind == .suggestion ? 34:nil)
-            .help((colorName.isEmpty ? "":colorName+" · ")+color.hex+" · Click to select; right-click to manage")
+        }.opacity(model.draggedColor==color ? 0.18:1)
+            .buttonStyle(ColorSurfaceButtonStyle()).focusEffectDisabled().frame(width:kind == .suggestion ? 34:nil)
+            .help((colorName.isEmpty ? "":colorName+" · ")+color.hex+" · Click to select; drag to organize; right-click to manage")
             .accessibilityLabel("Select \(colorName.isEmpty ? color.hex:colorName+", "+color.hex)")
-            .draggable(color.hex)
-            .dropDestination(for:String.self) { values,_ in
-                guard let source=values.first.flatMap(HexColor.init) else { return false }
-                switch kind {
-                case .pinned: model.mutate { $0.movePin(source,to:color) }
-                default:return false
-                }; return true
+            .overlay {
+                NativeSwatchInteraction(model:model,color:color,dropEnabled:kind != .suggestion,target:color,onTarget:{ dropTargeted=$0 },makeMenu:makeNativeMenu,section:kind,vertical:vertical)
             }
             .contextMenu {
                 Button("Copy HEX") { model.copyHex(color) }
@@ -427,6 +476,24 @@ struct Swatch:View {
                 Button("Cancel",role:.cancel) {}
                 Button("Save") { model.mutate { if let i=$0.pinned.firstIndex(where:{$0.color==color}) { $0.pinned[i].name=String(name.trimmingCharacters(in:.whitespacesAndNewlines).prefix(60)) } } }
             }
+    }
+    private func makeNativeMenu()->NSMenu {
+        let menu=NSMenu(); menu.autoenablesItems=false
+        func item(_ title:String,enabled:Bool=true,_ action:@escaping()->Void) {
+            let entry=SwatchMenuItem(title:title,perform:action); entry.isEnabled=enabled; menu.addItem(entry)
+        }
+        item("Copy HEX") { model.copyHex(color) }
+        item("Select color") { model.select(color) }
+        if isPinned {
+            item("Unpin") { model.unpin(color) }
+            item("Rename…") { name=colorName; rename=true }
+            if kind == .pinned {
+                item("Move left",enabled:model.library.pinned.first?.color != color) { move(-1) }
+                item("Move right",enabled:model.library.pinned.last?.color != color) { move(1) }
+            }
+        } else { item("Pin") { model.pin(color) } }
+        if kind == .recent { item("Remove from recent") { model.mutate { $0.recent.removeAll { $0==color } } } }
+        return menu
     }
     func move(_ offset:Int) {
         let pins=model.library.pinned

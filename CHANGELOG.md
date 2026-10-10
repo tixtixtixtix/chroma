@@ -1,5 +1,42 @@
 # Changelog
 
+## [1.1.0] - 2026-10-10
+
+- Fit four saved-color swatches in the compact picker without increasing its height.
+- Add smooth custom dragging, live reordering, drag-to-pin/unpin and draggable color suggestions.
+- Refine rounded drag previews, cancellation, scrolling and compact drop targets.
+- Improve suggestion selection and remove unused space in the expanded picker.
+
+## [1.0.5] - 2026-10-10
+
+- Clip the dragged artwork to the swatch’s rounded corners while retaining a rounded outside shadow.
+- Allow complementary and analogous suggestions to be dragged into Pinned or Recent.
+
+## [1.0.4] - 2026-10-10
+
+- Track every drag movement with an exact, rounded swatch preview and restrained pickup/release motion.
+- Preview pin and recent reordering with spring animations, saving only on a valid drop.
+- Drag pins into Recent to unpin; use the compact pin control as a pin/unpin drop target.
+- Cancel safely with Escape, outside drops, app switching or window closure.
+
+## [1.0.3] - 2026-10-10
+
+- Move swatches with a custom internal drag system, a lifted color preview and highlighted Pinned destinations.
+- Resolve destinations across nested hosting views without relying on text-drop routing.
+
+## [1.0.2] - 2026-10-10
+
+- Handle swatch drag sessions and drop targets directly with AppKit, including empty Pinned sections.
+- Preserve click selection and native context menus on draggable swatches.
+- Give saved content an exact viewport height and remeasure the host after size changes, without spare bottom space.
+
+## [1.0.1] - 2026-10-10
+
+- Fix suggestion selection with a stable native popover.
+- Fit the compact picker to the standard shelf height.
+- Enable saved-color scrolling and its scrollbar only when content overflows.
+- Drag recent colors into Pinned and reorder pins using highlighted insertion targets.
+
 ## [1.0.0] - 2026-10-10 — First public release
 
 - Publish the complete native HEX picker, saved colors, and color suggestions.

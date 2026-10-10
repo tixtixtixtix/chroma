@@ -21,17 +21,35 @@ import Combine
     var didChange:AnyPublisher<String,Never> { changes.eraseToAnyPublisher() }
 }
 final class ModelTests:XCTestCase {
+    @MainActor func testDroppingRecentsPinsAndReordersWithoutChangingSelectionOrHistory() {
+        let model=ChromaDroplet()
+        let a=HexColor("#112233")!,b=HexColor("#445566")!,c=HexColor("#778899")!
+        [a,b,c].forEach { model.select($0) }
+        let recent=model.library.recent,selected=model.selected
+        XCTAssertTrue(model.dropPinnedColors([a.hex]))
+        XCTAssertTrue(model.dropPinnedColors([b.hex],before:a))
+        model.mutate { $0.pinned[0].name="Favorite" }
+        XCTAssertTrue(model.dropPinnedColors([a.hex],before:b))
+        XCTAssertEqual(model.library.pinned.map(\.color),[a,b])
+        XCTAssertEqual(model.library.pinned[1].name,"Favorite")
+        XCTAssertTrue(model.dropPinnedColors([a.hex,a.hex],before:a))
+        XCTAssertEqual(model.library.pinned.map(\.color),[a,b])
+        XCTAssertFalse(model.dropPinnedColors(["invalid"]))
+        XCTAssertEqual(model.library.recent,recent)
+        XCTAssertEqual(model.selected,selected)
+    }
+
     @MainActor func testCompactHeightFitsVerticalSwatchesWithoutGrowing() {
         let model=ChromaDroplet()
-        XCTAssertEqual(model.compactHeight,156)
+        XCTAssertEqual(model.compactHeight,DroppyShellMetrics.shelfWidgetStandardContentHeight)
         model.select(HexColor("#09AA83")!)
-        XCTAssertEqual(model.compactHeight,156)
+        XCTAssertEqual(model.compactHeight,DroppyShellMetrics.shelfWidgetStandardContentHeight)
         model.mutate { $0.recent=[] }
-        XCTAssertEqual(model.compactHeight,156)
+        XCTAssertEqual(model.compactHeight,DroppyShellMetrics.shelfWidgetStandardContentHeight)
         model.pin(model.selected)
-        XCTAssertEqual(model.compactHeight,156)
+        XCTAssertEqual(model.compactHeight,DroppyShellMetrics.shelfWidgetStandardContentHeight)
         model.mutate { $0.recent=[] }
-        XCTAssertEqual(model.compactHeight,156,"Pins share the selector height in the vertical column")
+        XCTAssertEqual(model.compactHeight,DroppyShellMetrics.shelfWidgetStandardContentHeight,"Pins share the selector height in the vertical column")
     }
     @MainActor func testSelectionPublishesOneCoherentSavedState() {
         let model=ChromaDroplet()
@@ -128,4 +146,13 @@ extension ModelTests {
         XCTAssertEqual(model.selected,other)
         XCTAssertFalse(recorder.effects.contains(where:{$0.service=="workspace"}))
     }
+    func testUnpinAtFullRecentLimitRetainsDroppedColor() {
+        var library=ColorLibrary(); library.settings.maximumRecent=3
+        let colors=["#112233","#445566","#778899","#AABBCC"].map { HexColor($0)! }
+        library.recent=Array(colors.prefix(3)); library.pin(colors[3])
+        library.moveSwatch(colors[3],from:.pinned,to:.recent,relativeTo:nil)
+        XCTAssertEqual(library.recent,[colors[0],colors[1],colors[3]])
+        XCTAssertTrue(library.pinned.isEmpty)
+    }
+
 }

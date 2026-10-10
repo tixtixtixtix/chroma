@@ -6,7 +6,7 @@ Select or enter a color, preview it, copy its HEX code, and pin it for later.
 
 ## Features
 
-- Interactive saturation/brightness picker and hue strip in compact and expanded views.
+- Interactive saturation/brightness picker and hue strip in compact and expanded views. The compact view uses the standard 93-point shelf height.
 - Editable HEX input supporting `#RRGGBB`, `RRGGBB`, `#RGB`, and `#RRGGBBAA`. Valid values normalize to uppercase; trailing `FF` alpha becomes six digits.
 - Explicit HEX-only copying through the preview, Copy HEX button, Command-C, or a swatch context menu. Selecting a saved swatch loads it into the picker without copying.
 - Persistent recent colors, with duplicates moved to the front. The default limit is 27 and can be adjusted from 1 to 300.
@@ -50,7 +50,7 @@ Use the color plane and hue strip, or enter a HEX code in expanded view. Press R
 
 Command-C copies the selected HEX when the picker has focus and a text field is not being edited. Text fields retain normal editing shortcuts.
 
-Pin the selected color using the pin button. Right-click saved swatches to copy, pin or unpin, rename, reorder, or remove them. Drag pinned swatches to reorder them.
+Pin the selected color using the pin button. Right-click saved swatches to copy, pin or unpin, rename, reorder, or remove them. Drag recent colors into Pinned to save them, or pins into Recent to unpin them. Drag within either section to reorder; swatches shift to preview the insertion position before anything is saved. In compact view, reorder the vertical swatches or drop one on the pin button to pin or unpin it. Complementary and analogous suggestions can also be dragged into Pinned or Recent. Press Escape or release outside a valid destination to cancel. Names are preserved when pins move. Saved colors scroll only when they overflow.
 
 ## Droppy capture integration
 

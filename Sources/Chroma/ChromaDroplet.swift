@@ -18,6 +18,11 @@ public final class ChromaDroplet: NSObject, ObservableObject, Droplet {
     @Published var clipboardColor: HexColor?
     @Published var captureCommand: DropletLauncherItem?
     var host: DropletHost?
+    @Published var dragLibrary:ColorLibrary?
+    @Published var draggedColor:HexColor?
+    @Published var draggedFrom:SwatchKind?
+    var cancelSwatchDrag:(()->Void)?
+    var displayedLibrary:ColorLibrary { dragLibrary ?? library }
     private var subscriptions = Set<AnyCancellable>()
     private var captureObserver: AnyCancellable?
     private var noticeTask: Task<Void,Never>?
@@ -29,9 +34,9 @@ public final class ChromaDroplet: NSObject, ObservableObject, Droplet {
     var selected: HexColor { library.selected }
     @Published var measuredSavedColorsHeight:CGFloat?
     @Published var measuredPickerHeaderHeight:CGFloat?
-    var compactHeight:CGFloat { (captureCommand == nil ? 20:28)+8+112+16 }
+    var compactHeight:CGFloat { DroppyShellMetrics.shelfWidgetStandardContentHeight }
     func measuredPickerHeader(_ height:CGFloat) {
-        if height>0 && abs((measuredPickerHeaderHeight ?? 0)-height)>0.5 { measuredPickerHeaderHeight=height }
+        if height>0 && abs((measuredPickerHeaderHeight ?? 0)-height)>0.5 { measuredPickerHeaderHeight=height; host?.shelf.invalidateLayout(for:"chroma") }
     }
     var selectedIsPinned:Bool { library.pinned.contains { $0.color==selected } }
     func toggleSelectedPin() { if selectedIsPinned { unpin(selected) } else { pin(selected) } }
@@ -42,15 +47,16 @@ public final class ChromaDroplet: NSObject, ObservableObject, Droplet {
             return 19+(count==0 ? 14:rows*32+max(0,rows-1)*8)
         }
         let clipboardHeight:CGFloat=(clipboardColor != nil && clipboardColor != selected) ? 40:0
-        return section(library.pinned.count)+section(library.recent.count)+24+36+4+clipboardHeight
+        return section(library.pinned.count)+section(library.recent.count)+24+36+clipboardHeight
     }
     var pickerHeight:CGFloat { min(560,(measuredPickerHeaderHeight ?? (230+(HexColor(input)==nil ? 24:0)))+36+savedColorsHeight) }
     func measuredSavedColors(_ height:CGFloat) {
-        if height>0 && abs((measuredSavedColorsHeight ?? 0)-height)>0.5 { measuredSavedColorsHeight=height }
+        guard draggedColor == nil else { return }
+        if height>0 && abs((measuredSavedColorsHeight ?? 0)-height)>0.5 { measuredSavedColorsHeight=height; host?.shelf.invalidateLayout(for:"chroma") }
     }
     var quickColors: [HexColor] {
-        var result = library.pinned.map(\.color)
-        result += library.recent.filter { !result.contains($0) }
+        var result = displayedLibrary.pinned.map(\.color)
+        result += displayedLibrary.recent.filter { !result.contains($0) }
         return Array(result.prefix(8))
     }
     public func activate(host: DropletHost) throws {
@@ -68,6 +74,7 @@ public final class ChromaDroplet: NSObject, ObservableObject, Droplet {
         host.shelf.didChange.sink { [weak self] _ in self?.consumeCapture() }.store(in:&subscriptions)
     }
     public func deactivate() {
+        cancelSwatchDrag?(); cancelSwatchDrag=nil
         flushEdit(); subscriptions.removeAll(); captureObserver=nil; pendingCapture=nil
         noticeTask?.cancel(); noticeTask=nil; host=nil; clipboardColor=nil; captureCommand=nil
     }
@@ -174,13 +181,20 @@ public final class ChromaDroplet: NSObject, ObservableObject, Droplet {
     }
     func closePicker() { flushEdit(); host?.notchSurface.dismissExpandedSurface("picker") }
     func pin(_ color:HexColor) { mutate { $0.pin(color) } }
+    @discardableResult
+    func dropPinnedColors(_ values:[String],before target:HexColor?=nil)->Bool {
+        let colors=values.compactMap(HexColor.init)
+        guard !colors.isEmpty else { return false }
+        mutate { $0.insertPins(colors,before:target) }
+        return true
+    }
     func unpin(_ color:HexColor) { mutate { $0.unpin(color) } }
     func updateSetting(_ change:(inout Preferences)->Void) { mutate { change(&$0.settings) }; checkClipboard() }
 }
 
 extension ChromaDroplet: ShelfWidgetProviding {
     public var widgetDescriptors:[ShelfWidgetDescriptor] {
-        [.init(id:"chroma",title:"Chroma",systemImage:"paintpalette",layoutTraits:.init(preferredSoloWidth:440,preferredPairedWidth:280,contentHeight:.fixed(compactHeight)),focusPolicy:.keyboardFocusable)]
+        [.init(id:"chroma",title:"Chroma",systemImage:"paintpalette",layoutTraits:.init(preferredSoloWidth:440,preferredPairedWidth:280,contentHeight:.standard),focusPolicy:.keyboardFocusable)]
     }
     public func makeWidgetView(_ id:ShelfWidgetID,context:ShelfWidgetContext)->AnyView { AnyView(CompactPicker(model:self,context:context)) }
     public func makeWidgetSettingsPopover(_ id:ShelfWidgetID)->AnyView? { nil }
@@ -188,7 +202,7 @@ extension ChromaDroplet: ShelfWidgetProviding {
 extension ChromaDroplet: ExpandedSurfaceHosting, ExpandedSurfaceProviding {
     public var expandedSurfaceProvider:(any ExpandedSurfaceProviding)? { self }
     public var expandedSurfaces:[ExpandedSurfaceDescriptor] { [.init(id:"picker",title:"Color picker",systemImage:"paintpalette",suppresses:[.shelfWidgets,.favoritesBar,.floatingNavLane,.autoCollapse])] }
-    public func makeExpandedSurfaceView(_ id:ExpandedSurfaceID,context:ExpandedSurfaceContext)->AnyView { AnyView(ExpandedPicker(model:self,isPreview:context.isPreview)) }
+    public func makeExpandedSurfaceView(_ id:ExpandedSurfaceID,context:ExpandedSurfaceContext)->AnyView { AnyView(ExpandedPicker(model:self,isPreview:context.isPreview,availableHeight:context.availableSize.height)) }
     public func expandedSurfaceSize(_ id:ExpandedSurfaceID,fitting proposal:ExpandedSurfaceSizeProposal)->CGSize? { CGSize(width:min(440,proposal.maximumSize.width),height:min(pickerHeight,proposal.maximumSize.height)) }
     public func expandedSurfaceDidDismiss(_ id:ExpandedSurfaceID,presentation:ExpandedSurfacePresentation,reason:ExpandedSurfaceDismissalReason) { flushEdit() }
 }

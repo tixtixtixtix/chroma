@@ -91,6 +91,31 @@ public struct ColorLibrary: Codable, Equatable, Sendable {
         pin(color)
         if !palettes[i].colors.contains(color) { palettes[i].colors.append(color) }
     }
+    public mutating func insertPins(_ colors:[HexColor],before target:HexColor?=nil) {
+        var seen=Set<HexColor>()
+        for color in colors where seen.insert(color).inserted && color != target {
+            let existing=pinned.first(where:{$0.color==color}) ?? SavedColor(color:color)
+            pinned.removeAll { $0.color==color }
+            let index=target.flatMap { target in pinned.firstIndex(where:{$0.color==target}) } ?? pinned.endIndex
+            pinned.insert(existing,at:index)
+        }
+    }
+    mutating func moveSwatch(_ color:HexColor,from source:SwatchKind,to section:SwatchKind,relativeTo target:HexColor?,after:Bool=false) {
+        if section == .pinned {
+            let saved=pinned.first(where:{$0.color==color}) ?? SavedColor(color:color)
+            let original=pinned.firstIndex(where:{$0.color==color})
+            pinned.removeAll { $0.color==color }
+            let index=target==color ? min(original ?? pinned.endIndex,pinned.endIndex):target.flatMap { t in pinned.firstIndex(where:{$0.color==t}) }.map { $0+(after ? 1:0) } ?? pinned.endIndex
+            pinned.insert(saved,at:index)
+        } else if section == .recent {
+            if source == .pinned { unpin(color) }
+            let original=recent.firstIndex(of:color)
+            recent.removeAll { $0==color }
+            let index=target==color ? min(original ?? recent.endIndex,recent.endIndex):target.flatMap { recent.firstIndex(of:$0) }.map { $0+(after ? 1:0) } ?? recent.endIndex
+            recent.insert(color,at:min(index,max(0,settings.maximumRecent-1)))
+        }
+        trim()
+    }
     public mutating func movePin(_ color: HexColor, to target: HexColor) {
         guard let from = pinned.firstIndex(where:{$0.color==color}), let to=pinned.firstIndex(where:{$0.color==target}), from != to else { return }
         let item = pinned.remove(at:from); pinned.insert(item,at:to)
