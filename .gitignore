@@ -1,0 +1,45 @@
+# Swift and generated bundles
+.build/
+.swiftpm/
+DerivedData/
+*.droplet/
+*.dSYM/
+*.xcarchive/
+*.xcresult/
+
+# Local editor and agent configuration
+.cursor/
+.vscode/
+.idea/
+.mcp.json
+AGENTS.md
+CLAUDE.md
+*.xcuserstate
+xcuserdata/
+
+# Temporary files and generated screenshots
+work/
+tmp/
+temp/
+shots/
+*.log
+*.tmp
+*.swp
+*~
+
+# Credentials and local environment configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+secrets.json
+
+# macOS and archive artifacts
+.DS_Store
+._*
+__MACOSX/
+*.zip

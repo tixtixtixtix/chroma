@@ -1,0 +1,43 @@
+{
+  "id": "chroma",
+  "name": "Chroma",
+  "version": "1.0.10",
+  "summary": "Pick a color, copy HEX, keep your favorites",
+  "description": "A native HEX color picker with editable input, alpha, recent colors, persistent pins and color suggestions. Uses Droppy\u2019s existing capture color picker through the public command bridge.",
+  "category": "Productivity",
+  "kit": {
+    "abi": 1,
+    "minAPI": "1.12.0"
+  },
+  "minAppVersion": "15.3.0",
+  "capabilities": [
+    "shelf-read",
+    "shelf-write",
+    "expanded-surface",
+    "clipboard-read",
+    "clipboard-write",
+    "launcher"
+  ],
+  "surfaces": [
+    "shelf-widget",
+    "expanded-surface",
+    "settings-pane"
+  ],
+  "icon": "Chroma.icon",
+  "creator": {
+    "name": "tixtixtixtix",
+    "kind": "community",
+    "avatar": "Creator.png"
+  },
+  "source": {
+    "repository": "https://github.com/tixtixtixtix/chroma",
+    "license": "MIT"
+  },
+  "screenshots": [],
+  "keywords": [
+    "color",
+    "hex",
+    "picker",
+    "palette"
+  ]
+}
